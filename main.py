@@ -36,7 +36,7 @@ def parse_card_csv(path: str) -> np.ndarray:
             continue
         for p in ("B-", "I-", "N-", "G-", "O-"):
             t = t.replace(p, "")
-        int(t)  # valida número
+        int(t)
         vals.append(t)
 
     arr = np.array(vals, dtype=object).reshape(5, 5)
@@ -130,6 +130,8 @@ if "called_history" not in st.session_state:
     st.session_state.called_history = []
 if "input_num" not in st.session_state:
     st.session_state.input_num = ""
+if "bulk_text" not in st.session_state:
+    st.session_state.bulk_text = ""
 
 # Callbacks
 def add_number():
@@ -144,10 +146,45 @@ def add_number():
             st.toast(f"Agregado: {tok}")
     st.session_state.input_num = ""  # limpiar input
 
+def add_bulk():
+    raw = st.session_state.bulk_text or ""
+    # Normalizar separadores: coma, espacio, salto de línea, punto y coma
+    seps = [",", "\n", "\t", ";", " "]
+    for s in seps[1:]:
+        raw = raw.replace(s, ",")
+    tokens = [t.strip() for t in raw.split(",") if t.strip()]
+
+    added, dupes, invalid = [], [], []
+    for t in tokens:
+        norm = normalize_single_token(t)
+        if norm is None:
+            invalid.append(t)
+            continue
+        if norm in st.session_state.called_history:
+            dupes.append(norm)
+        else:
+            st.session_state.called_history.append(norm)
+            added.append(norm)
+
+    # Mensaje resumen
+    msg = []
+    if added:
+        msg.append(f"➕ Agregados: {', '.join(sorted(added, key=lambda x:int(x)))}")
+    if dupes:
+        msg.append(f"↔️ Duplicados: {', '.join(sorted(set(dupes), key=lambda x:int(x)))}")
+    if invalid:
+        msg.append(f"⚠️ Inválidos: {', '.join(invalid)}")
+    st.success("\n\n".join(msg) if msg else "No se procesó ningún número.")
+    st.session_state.bulk_text = ""  # limpiar campo
+
 def undo_last():
     if st.session_state.called_history:
         last = st.session_state.called_history.pop()
         st.toast(f"Deshecho: {last}")
+
+def clear_all():
+    st.session_state.called_history = []
+    st.toast("Se limpiaron todos los números.")
 
 # Cargar archivos
 carton_paths = sorted(glob.glob(os.path.join("cartones", "*.csv")))
@@ -184,12 +221,12 @@ for cond in condiciones:
 with st.sidebar.expander("Cartones activos", expanded=True):
     for c in cartones:
         key = f"card_active::{c['name']}"
-        st.checkbox(c["name"], value=st.session_state[key], key=key)  # NO reasignar al session_state
+        st.checkbox(c["name"], value=st.session_state[key], key=key)
 
 with st.sidebar.expander("Condiciones activas", expanded=True):
     for cond in condiciones:
         key = f"cond_active::{cond['name']}"
-        st.checkbox(cond["name"], value=st.session_state[key], key=key)  # NO reasignar al session_state
+        st.checkbox(cond["name"], value=st.session_state[key], key=key)
 
 active_cartones = [c for c in cartones if st.session_state.get(f"card_active::{c['name']}", True)]
 active_condiciones = [c for c in condiciones if st.session_state.get(f"cond_active::{c['name']}", True)]
@@ -198,10 +235,12 @@ active_condiciones = [c for c in condiciones if st.session_state.get(f"cond_acti
 cols_top = st.columns([2, 1])
 with cols_top[0]:
     st.subheader("Números cantados (rápido para móvil)")
-    c1, c2, c3 = st.columns([2, 1, 1])
+
+    # Línea 1: uno por uno
+    c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
     with c1:
         st.text_input(
-            "Escribe un número y toca Agregar (también acepta B-7, I22, etc.)",
+            "Escribe un número y toca Agregar (también B-7, I22, etc.)",
             key="input_num",
             label_visibility="collapsed",
             placeholder="Ej: 14 o B-14",
@@ -210,6 +249,16 @@ with cols_top[0]:
         st.button("➕ Agregar", use_container_width=True, on_click=add_number)
     with c3:
         st.button("↩️ Borrar último", use_container_width=True, on_click=undo_last)
+    with c4:
+        st.button("🧹 Limpiar todo", use_container_width=True, on_click=clear_all)
+
+    # Línea 2: pegar varios a la vez
+    st.text_input(
+        "Pega varios números separados por coma/espacio/nueva línea (acepta B/I/N/G/O).",
+        key="bulk_text",
+        placeholder="Ej: 1,2,3,4,5 6 7\nB-12, I24, 33",
+    )
+    st.button("📥 Agregar lista", on_click=add_bulk)
 
     called_sorted = sorted(numbers_set_from_history(st.session_state.called_history), key=lambda x: int(x))
     st.markdown("**Ordenados (para marcar cartones):** " + (", ".join(called_sorted) if called_sorted else "—"))
@@ -288,4 +337,4 @@ if winners:
 else:
     st.write("Sin ganadores por ahora.")
 
-st.caption("Tip: desmarca condiciones o cartones en la barra lateral para seguir jugando con los demás.")
+st.caption("Tip: puedes pegar muchos números y tocar **Agregar lista**. También hay **Limpiar todo** para reiniciar.")
