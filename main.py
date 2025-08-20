@@ -123,7 +123,7 @@ def render_board(card: np.ndarray, mask: np.ndarray) -> Image.Image:
 # ----------------- App -----------------
 ensure_dirs()
 st.set_page_config(page_title="Bingo – Cartones y Condiciones", layout="wide")
-st.title("🎯 Bingo — Cartones desde `cartones/` y Condiciones desde `condiciones/`")
+st.title("🎯 Bingo")
 
 # Estado
 if "called_history" not in st.session_state:
