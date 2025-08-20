@@ -103,6 +103,87 @@ def render_board(card: np.ndarray, mask: np.ndarray) -> Image.Image:
     cell = 80
     img = Image.new("RGB", (W, H), (248, 250, 252))
     draw = ImageDraw.Draw(img)
+    # Encabezado BINGO
+    for c, ch in enumerate("BINGO"):
+        x0 = 10 + c * cell
+        draw.rectangle([x0, 10, x0 + cell - 2, 10 + 40], fill=(225, 245, 255))
+        draw.text((x0 + 30, 20), ch, fill=(20, 20, 20))
+    # Celdas
+    for r in range(5):
+        for c in range(5):
+            x0 = 10 + c * cell
+            y0 = 60 + r * cell
+            bg = (210, 244, 221) if mask[r, c] else (255, 255, 255)
+            draw.rectangle([x0, y0, x0 + cell - 2]()
+        for p in ("B-", "I-", "N-", "G-", "O-"):
+            t = t.replace(p, "")
+        int(t)
+        vals.append(t)
+
+    arr = np.array(vals, dtype=object).reshape(5, 5)
+    if arr[2, 2] in {"FREE", "0"}:
+        arr[2, 2] = "FREE"
+    return arr
+
+def parse_condition_csv(path: str) -> np.ndarray:
+    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        text = f.read().strip()
+    text = text.replace(";", ",").replace("\t", " ")
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+
+    tokens = []
+    if len(lines) >= 5:
+        for ln in lines:
+            parts = [p.strip() for p in (ln.split(",") if "," in ln else ln.split()) if p.strip()]
+            tokens.extend(parts)
+    else:
+        sep = "," if "," in text else " "
+        tokens = [t.strip() for t in text.split(sep) if t.strip()]
+
+    if len(tokens) != 25:
+        raise ValueError(f"{os.path.basename(path)}: se esperaban 25 valores (0/1), llegaron {len(tokens)}.")
+    if not all(t in {"0", "1"} for t in tokens):
+        raise ValueError(f"{os.path.basename(path)}: solo 0/1 permitidos.")
+    arr = np.array([int(t) for t in tokens], dtype=int).reshape(5, 5)
+    return arr
+
+def normalize_single_token(tok: str) -> str | None:
+    if not tok:
+        return None
+    s = tok.upper().strip()
+    s = s.replace("B-", "").replace("I-", "").replace("N-", "").replace("G-", "").replace("O-", "")
+    for L in ("B", "I", "N", "G", "O"):
+        if s.startswith(L):
+            s = s[len(L):]
+            break
+    s = s.strip().replace(",", "").replace(";", "")
+    if not s.isdigit():
+        return None
+    n = int(s)
+    if 1 <= n <= 75:
+        return str(n)
+    return None
+
+def numbers_set_from_history(history: list[str]) -> set[str]:
+    return set(history)
+
+def hits_mask(card: np.ndarray, called_set: set[str]) -> np.ndarray:
+    mask = np.zeros_like(card, dtype=bool)
+    for r in range(5):
+        for c in range(5):
+            v = str(card[r, c]).upper()
+            mask[r, c] = (v == "FREE") or (v in called_set)
+    return mask
+
+def matches_pattern(mask: np.ndarray, pat: np.ndarray) -> bool:
+    must = pat.astype(bool)
+    return np.all(mask[must])
+
+def render_board(card: np.ndarray, mask: np.ndarray) -> Image.Image:
+    W, H = 420, 460
+    cell = 80
+    img = Image.new("RGB", (W, H), (248, 250, 252))
+    draw = ImageDraw.Draw(img)
     for c, ch in enumerate("BINGO"):
         x0 = 10 + c * cell
         draw.rectangle([x0, 10, x0 + cell - 2, 10 + 40], fill=(225, 245, 255))
